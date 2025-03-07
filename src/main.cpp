@@ -52,14 +52,33 @@ size_t align_size(size_t size, size_t align) {
 	return s;
 }
 
-void pool_free_all(Pool *p);
+void pool_free_all(Pool *p) {
+	size_t chunk_count = p->length / p->chunk_size;
+
+	for (size_t i = 0; i < chunk_count; ++i) {
+		void *ptr = &p->buffer[i * p->chunk_size];
+		Pool_Free_Node *node = (Pool_Free_Node *)ptr;
+		node->next = p->head;
+		p->head = node;
+	}
+}
 
 void init_pool(Pool *p, void *buffer, size_t length, size_t chunk_size, size_t chunk_alignment) {
 	chunk_size = align_size(chunk_size, chunk_alignment);
 	assert(chunk_size >= sizeof(Pool_Free_Node) && "Chunk size is too small");
+
+	uintptr_t initial_start = (uintptr_t)buffer;
+	uintptr_t start = align_uintptr(start, chunk_alignment);
+	length = (size_t)(start - initial_start);
+	length = (length / chunk_size) * chunk_size;
+	
+	p->buffer = (unsigned char *)buffer;
+	p->length = length;
+	p->chunk_size = chunk_size;
+	p->head = NULL;
+
+	pool_free_all(p);
 }
-
-
 
 int main() {
 	return 1;
