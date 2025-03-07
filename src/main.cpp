@@ -2,6 +2,10 @@
 #include <cstring>
 #include <iostream>
 
+#ifndef DEFAULT_ALIGNMENT
+#define DEFAULT_ALIGNMENT sizeof(void *)
+#endif
+
 typedef struct Pool_Free_Node Pool_Free_Node;
 struct Pool_Free_Node {
 	Pool_Free_Node *next;
@@ -63,19 +67,21 @@ void pool_free_all(Pool *p) {
 	}
 }
 
-void init_pool(Pool *p, void *buffer, size_t length, size_t chunk_size, size_t chunk_alignment) {
+void pool_init(Pool *p, void *buffer, size_t length, size_t chunk_size, size_t chunk_alignment) {
 	chunk_size = align_size(chunk_size, chunk_alignment);
-	assert(chunk_size >= sizeof(Pool_Free_Node) && "Chunk size is too small");
+	assert(chunk_size >= sizeof(Pool_Free_Node) && "Chunk size is too small!");
 
 	uintptr_t initial_start = (uintptr_t)buffer;
-	uintptr_t start = align_uintptr(start, chunk_alignment);
-	length = (size_t)(start - initial_start);
-	length = (length / chunk_size) * chunk_size;
+	uintptr_t start 		= align_uintptr(initial_start, chunk_alignment);
+	length 				   -= (size_t)(start - initial_start);
+	length 					= (length / chunk_size) * chunk_size;
 	
-	p->buffer = (unsigned char *)buffer;
-	p->length = length;
-	p->chunk_size = chunk_size;
-	p->head = NULL;
+	assert(length >= chunk_size && "Buffer length is smaller than chunk size!");
+
+	p->buffer 		= (unsigned char *)start;
+	p->length 		= length;
+	p->chunk_size 	= chunk_size;
+	p->head 		= NULL;
 
 	pool_free_all(p);
 }
@@ -84,7 +90,7 @@ void *pool_alloc(Pool *p) {
 	void *ptr = p->head;
 
 	if (ptr == NULL) {
-		assert(0 && "Pool has no free memory");
+		assert(0 && "Pool has no free memory!");
 		return NULL;
 	}
 
@@ -109,5 +115,57 @@ void pool_free(Pool *p, void *ptr) {
 }
 
 int main() {
-	return 1;
+	int i;
+	unsigned char backing_buffer[1024];
+	Pool p;
+	void *a, *b, *c, *d, *e, *f;
+	
+	pool_init(&p, backing_buffer, 1024, 64, DEFAULT_ALIGNMENT);
+	
+	a = pool_alloc(&p);
+	b = pool_alloc(&p);
+	c = pool_alloc(&p);
+	d = pool_alloc(&p);
+	e = pool_alloc(&p);
+	f = pool_alloc(&p);
+	
+	*(int *)a = 5;
+	*(int *)b = 10;
+	*(int *)c = 15;
+	*(int *)d = 20;
+	*(int *)e = 25;
+	*(int *)f = 30;
+	
+	//All ints
+	std::cout << *(int *)a << std::endl;
+	std::cout << *(int *)b << std::endl;
+	std::cout << *(int *)c << std::endl;
+	std::cout << *(int *)d << std::endl;
+	std::cout << *(int *)e << std::endl;
+	std::cout << *(int *)f << std::endl;
+	
+	pool_free(&p, b);
+	pool_free(&p, c);
+	pool_free(&p, d);
+	pool_free(&p, f);
+	
+	//b, c, d, f have been replaced by Pool_Free_Nodes
+	std::cout << *(int *)a << std::endl;
+	std::cout << *(int *)b << std::endl;
+	std::cout << *(int *)c << std::endl;
+	std::cout << *(int *)d << std::endl;
+	std::cout << *(int *)e << std::endl;
+	std::cout << *(int *)f << std::endl;
+	
+	d = pool_alloc(&p);
+	
+	pool_free(&p, a);
+	
+	a = pool_alloc(&p);
+	
+	pool_free(&p, a);
+	pool_free(&p, d);
+	pool_free(&p, e);
+	
+	return 0;
 }
