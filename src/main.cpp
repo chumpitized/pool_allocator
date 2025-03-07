@@ -80,6 +80,34 @@ void init_pool(Pool *p, void *buffer, size_t length, size_t chunk_size, size_t c
 	pool_free_all(p);
 }
 
+void *pool_alloc(Pool *p) {
+	void *ptr = p->head;
+
+	if (ptr == NULL) {
+		assert(0 && "Pool has no free memory");
+		return NULL;
+	}
+
+	p->head = p->head->next;
+
+	return memset(ptr, 0, p->chunk_size);
+}
+
+void pool_free(Pool *p, void *ptr) {
+	if (ptr == NULL) {
+		return;
+	}
+
+	if (!(&p->buffer <= ptr && ptr < &p->buffer[p->length])) {
+		assert(0 && "Memory is outside pool buffer!");
+		return;
+	}
+
+	Pool_Free_Node *node = (Pool_Free_Node *)ptr;
+	node->next = p->head;
+	p->head = node;
+}
+
 int main() {
 	return 1;
 }
